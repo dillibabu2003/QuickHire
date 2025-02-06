@@ -21,12 +21,12 @@ export default class SocketManager {
             const newRoom = new Room(roomId);
             newRoom.client1 = client;
             this.rooms.set(roomId, newRoom);
-            ws.send(JSON.stringify(new SocketResponse("meeting-created", null, "Waiting for other client to connect.")))
+            ws.emit("meeting-created",JSON.stringify(new SocketResponse("meeting-created", null, "Waiting for other client to connect.")))
         }
     }
     signalBothClients(roomId,eventName,output,message) {
-        this.rooms.get(roomId).client1.socket.send(JSON.stringify(new SocketResponse(eventName,output,message)));
-        this.rooms.get(roomId).client2.socket.send(JSON.stringify(new SocketResponse(eventName,output,message)));
+        this.rooms.get(roomId).client1.socket.emit(eventName,JSON.stringify(new SocketResponse(eventName,output,message)));
+        this.rooms.get(roomId).client2.socket.emit(eventName,JSON.stringify(new SocketResponse(eventName,output,message)));
     }
     initHandlers(ws) {
         ws.on('message', (data) => {
@@ -37,7 +37,7 @@ export default class SocketManager {
             else if (data.type == "execute") {
                 //check if room is present
                 if (!this.rooms.has(data.roomId)) {
-                    ws.send(JSON.stringify(new SocketResponse("meeting-yet-start", null, "Meeting is not yet started.")));
+                    ws.emit("meeting-yet-to-start",JSON.stringify(new SocketResponse("meeting-yet-to-start", null, "Meeting is not yet started.")));
                     return;
                 }
                 this.handleCodeExecution(data);
@@ -50,7 +50,7 @@ export default class SocketManager {
         const { code, lang, input } = data;
         //kill the child process if timeout happens
         if (!code || !lang) {
-            ws.send(new SocketResponse("error", null, "Code or language is missing."));
+            ws.emit("error",JSON.stringify(new SocketResponse("error", null, "Code or language is missing.")));
             return;
         }
         //create child process and execute it and signal, execution is taking place.
