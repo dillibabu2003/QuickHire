@@ -3,12 +3,13 @@ import { existsSync, writeFileSync } from 'fs';
 import path from 'path';
 
 export default class ChildProcessExecutor {
-  constructor(lang, code, input = '') {
+  constructor(lang, code, input = '', timeout = 5000) {  // Added timeout parameter (default: 5000 ms)
     this.lang = lang;
     this.code = code.replace(/\\"/g, '"')  // Replace escaped double quotes
       .replace(/\\'/g, "'")  // Replace escaped single quotes
       .replace(/\\\\/g, '\\'); // Replace escaped backslashes
     this.input = input;
+    this.timeout = timeout;  // Timeout in milliseconds
   }
 
   // Function to create and execute the child process
@@ -16,6 +17,18 @@ export default class ChildProcessExecutor {
     return new Promise((resolve, reject) => {
       let child;
       let fileName;
+
+      // Start a timeout
+      const timeoutId = setTimeout(() => {
+        reject({
+          status: 'error',
+          output: '',
+          message: `Code execution timed out after ${this.timeout}ms`
+        });
+        if (child && child.kill) {
+          child.kill('SIGTERM');  // Kill the child process if it exceeds the timeout
+        }
+      }, this.timeout);
 
       // Based on the language, spawn a process
       if (this.lang === 'js') {
@@ -48,6 +61,7 @@ export default class ChildProcessExecutor {
             });
 
             javaChild.on('close', (exitCode) => {
+              clearTimeout(timeoutId);  // Clear the timeout
               if (exitCode === 0) {
                 resolve({
                   status: 'success',
@@ -69,6 +83,7 @@ export default class ChildProcessExecutor {
               javaChild.stdin.end();
             }
           } else {
+            clearTimeout(timeoutId);  // Clear the timeout
             reject({
               status: 'error',
               output: 'Java code compilation failed',
@@ -102,6 +117,7 @@ export default class ChildProcessExecutor {
             });
 
             cppChild.on('close', (exitCode) => {
+              clearTimeout(timeoutId);  // Clear the timeout
               if (exitCode === 0) {
                 resolve({
                   status: 'success',
@@ -123,6 +139,7 @@ export default class ChildProcessExecutor {
               cppChild.stdin.end();
             }
           } else {
+            clearTimeout(timeoutId);  // Clear the timeout
             reject({
               status: 'error',
               output: 'C++ code compilation failed',
@@ -133,6 +150,7 @@ export default class ChildProcessExecutor {
 
         return;
       } else {
+        clearTimeout(timeoutId);  // Clear the timeout
         return reject({ status: 'error', output: '', message: 'Unsupported language!' });
       }
 
@@ -151,6 +169,7 @@ export default class ChildProcessExecutor {
 
       // When the child process finishes
       child.on('close', (code) => {
+        clearTimeout(timeoutId);  // Clear the timeout
         if (code === 0) {
           resolve({
             status: 'success',
@@ -184,6 +203,7 @@ export default class ChildProcessExecutor {
     }
   }
 }
+
 // const javaCode = `
 // import java.util.Scanner;
 
@@ -208,7 +228,7 @@ export default class ChildProcessExecutor {
 
 // const langJava = 'java';
 // const langCpp = 'cpp';
-// const input = 'Hello from user input!';
+// let input = 'Hello from user input!';
 
 // const javaExecutor = new ChildProcessExecutor(langJava, javaCode, input);
 // const cppExecutor = new ChildProcessExecutor(langCpp, cppCode, input);
@@ -221,10 +241,10 @@ export default class ChildProcessExecutor {
 //   .then(result => console.log('C++ Result:', result))
 //   .catch(error => console.error('C++ Error:', error));
 
-// Example usage:
+// // Example usage:
 // const code = "console.log('Hello from JS!')";
 // const lang = 'js'; // Can be 'js' for JavaScript, 'python' for Python, etc.
-// const input = '';
+// input = '';
 
 // const executor = new ChildProcessExecutor(lang, code, input);
 // executor.execute()
