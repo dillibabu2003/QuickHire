@@ -1,6 +1,3 @@
-// import express from "express";
-// const app =  express();
-import ws from "ws";
 import http from "http";
 import SocketManager from "./SocketManager.js";
 const server = http.createServer();

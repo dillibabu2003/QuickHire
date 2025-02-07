@@ -14,9 +14,7 @@ export default class SocketManager {
     }
     joinRoom(roomId, clientName, ws) {
         const client = new Client(clientName, ws);
-        ws.roomId=roomId;
-        console.log(client.name);
-        
+        ws.roomId=roomId;        
         if (this.rooms.has(roomId)) {
             this.rooms.get(roomId).client2 = client;
             this.signalBothClients(roomId,Events.MEETING_STARTED,null,"Meeting got started.");
@@ -56,7 +54,6 @@ export default class SocketManager {
         });
         ws.on('error', console.error);
         ws.on('close',()=>{
-            console.log("Socket Disconnected.");            
             if(!this.rooms.has(ws.roomId)) return;
             const {client1,client2} = this.rooms.get(ws.roomId);
             if(client1?.socket==ws){
@@ -84,17 +81,14 @@ export default class SocketManager {
         room.lang=lang;
         room.input=""||input;
         this.signalBothClients(data.roomId,Events.EXECUTION_IN_PROGRESS,null,"Compiling the code.")
-        const executor = new ChildProcessExecutor(lang, code,input);
+        const executor = new ChildProcessExecutor(lang, code,input,data.roomId);
         executor.execute()
             .then(result => {
-                console.log('Output:', result.output); // Should print: 'Hello from JS!'
-                console.log('Message:', result.message);
-
-                this.signalBothClients(data.roomId,Events.EXECUTION_COMPLETED,result.output,"Compilation successfull.");
+                this.signalBothClients(data.roomId,Events.EXECUTION_COMPLETED,result.output,result.message);
             })
             .catch(error => {
                 console.error('Error:', error.message);
-                this.signalBothClients(data.roomId,Events.EXECUTION_COMPLETED,result.output,"Compilation Error.");
+                this.signalBothClients(data.roomId,Events.EXECUTION_COMPLETED,result.output,result.message);
             });
     }
 
