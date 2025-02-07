@@ -1,22 +1,32 @@
 import { spawn } from 'child_process';
-import { existsSync, writeFileSync } from 'fs';
-import path from 'path';
+import { mkdirSync,unlinkSync, writeFileSync } from 'fs';
 
 export default class ChildProcessExecutor {
-  constructor(lang, code, input = '', timeout = 5000) {  // Added timeout parameter (default: 5000 ms)
+  constructor(lang, code, input = '', roomId,timeout = 5000) {  // Added timeout parameter (default: 5000 ms)
     this.lang = lang;
     this.code = code.replace(/\\"/g, '"')  // Replace escaped double quotes
       .replace(/\\'/g, "'")  // Replace escaped single quotes
       .replace(/\\\\/g, '\\'); // Replace escaped backslashes
     this.input = input;
+    this.roomId=roomId;
     this.timeout = timeout;  // Timeout in milliseconds
   }
 
+   // Ensure the temporary directory exists
+   ensureTempDirectoryExists() {
+    const dirPath = './tmp';
+    try {
+      mkdirSync(dirPath, { recursive: true });
+    } catch (error) {
+      console.error('Failed to create tmp directory:', error);
+    }
+  }
   // Function to create and execute the child process
   createChildProcess() {
     return new Promise((resolve, reject) => {
       let child;
       let fileName;
+      this.ensureTempDirectoryExists();
 
       // Start a timeout
       const timeoutId = setTimeout(() => {
@@ -39,12 +49,15 @@ export default class ChildProcessExecutor {
         child = spawn('python3', ['-c', this.code]);
       } else if (this.lang === 'java') {
         // Save the Java code to a temporary file
-        fileName = './tmp/TempProgram'+this.roomId+'.java';
+        fileName = './tmp/TempProgram'+this.roomId+'.java';        
         writeFileSync(fileName, this.code);
 
         // Compile the Java code using javac
         child = spawn('javac', [fileName]);
-
+        let compilationError = "";
+        child.stderr.on("data",(data)=>{
+          compilationError+=data.toString();
+        });
         child.on('close', (code) => {
           if (code === 0) {
             // After successful compilation, run the Java program
@@ -62,6 +75,7 @@ export default class ChildProcessExecutor {
 
             javaChild.on('close', (exitCode) => {
               clearTimeout(timeoutId);  // Clear the timeout
+            unlinkSync(fileName);
               if (exitCode === 0) {
                 resolve({
                   status: 'success',
@@ -84,9 +98,10 @@ export default class ChildProcessExecutor {
             }
           } else {
             clearTimeout(timeoutId);  // Clear the timeout
+            unlinkSync(fileName);
             reject({
               status: 'error',
-              output: 'Java code compilation failed',
+              output: compilationError,
               message: 'Compilation error'
             });
           }
@@ -100,7 +115,10 @@ export default class ChildProcessExecutor {
 
         // Compile the C++ code using g++
         child = spawn('g++', ['-o', './tmp/TempProgram'+this.roomId+'', fileName]);
-
+        let compilationError = "";
+        child.stderr.on("data",(data)=>{
+          compilationError+=data.toString();
+        });
         child.on('close', (code) => {
           if (code === 0) {
             // After successful compilation, run the C++ program
@@ -118,6 +136,8 @@ export default class ChildProcessExecutor {
 
             cppChild.on('close', (exitCode) => {
               clearTimeout(timeoutId);  // Clear the timeout
+              unlinkSync(fileName);
+              unlinkSync(fileName.substring(0,fileName.length-4));
               if (exitCode === 0) {
                 resolve({
                   status: 'success',
@@ -140,14 +160,14 @@ export default class ChildProcessExecutor {
             }
           } else {
             clearTimeout(timeoutId);  // Clear the timeout
+            unlinkSync(fileName);
             reject({
               status: 'error',
-              output: 'C++ code compilation failed',
+              output: compilationError,
               message: 'Compilation error'
             });
           }
         });
-
         return;
       } else {
         clearTimeout(timeoutId);  // Clear the timeout
@@ -230,8 +250,8 @@ export default class ChildProcessExecutor {
 // const langCpp = 'cpp';
 // let input = 'Hello from user input!';
 
-// const javaExecutor = new ChildProcessExecutor(langJava, javaCode, input);
-// const cppExecutor = new ChildProcessExecutor(langCpp, cppCode, input);
+// const javaExecutor = new ChildProcessExecutor(langJava, javaCode, input,crypto.randomUUID())
+// const cppExecutor = new ChildProcessExecutor(langCpp, cppCode, input,crypto.randomUUID());
 
 // javaExecutor.execute()
 //   .then(result => console.log('Java Result:', result))
@@ -246,7 +266,7 @@ export default class ChildProcessExecutor {
 // const lang = 'js'; // Can be 'js' for JavaScript, 'python' for Python, etc.
 // input = '';
 
-// const executor = new ChildProcessExecutor(lang, code, input);
+// const executor = new ChildProcessExecutor(lang, code, input,crypto.randomUUID());
 // executor.execute()
 //   .then(result => {
 //     console.log('Result:', result);
